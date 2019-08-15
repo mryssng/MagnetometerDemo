@@ -2,7 +2,7 @@
 //  ViewController.swift
 //  MagnetometerDemo
 //
-//  Created by shingo on 2019/05/07.
+//  Created by Ytse Jam on 2019/05/07.
 //  Copyright © 2019 codebase. All rights reserved.
 //
 
@@ -51,6 +51,7 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         isDetecting = false
         setDetectionAction()
         
+        // Location manager setting
         locationManager = CLLocationManager()
         locationManager?.delegate = self
         
@@ -93,8 +94,7 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         calMagTotal.text = String(format: "%10f", total)
     }
 
-    
-    // センサー取得を止める場合
+    // Stop getting sensor data
     func stopMagnetometer(){
         if (motionManager.isMagnetometerAvailable) {
             motionManager.stopMagnetometerUpdates()
@@ -107,10 +107,13 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         if isDetecting {
             detectionButton.setImage(stopIcon, for: UIControl.State.normal)
 
+            // Get raw magnetometoer data (CMMagnetometer)
             motionManager.startMagnetometerUpdates(to: OperationQueue.main, withHandler: updateMotionManagerHandler!)
             
+            // Get CMCalibratedMagneticField data
             motionManager.startDeviceMotionUpdates(using: CMAttitudeReferenceFrame.xArbitraryCorrectedZVertical, to: OperationQueue.main, withHandler: updateDeviceMotionHandler!)
 
+            // Get CLHeading magnetometoer data
             locationManager?.startUpdatingHeading()
         }
         else {
@@ -135,7 +138,6 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
     @IBAction func touchUpStartStopButton(_ sender: Any) {
         isDetecting = !isDetecting
         setDetectionAction()
-
     }
 }
 

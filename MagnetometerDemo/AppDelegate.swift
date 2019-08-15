@@ -2,7 +2,7 @@
 //  AppDelegate.swift
 //  MagnetometerDemo
 //
-//  Created by shingo on 2019/05/07.
+//  Created by Ytse Jam on 2019/05/07.
 //  Copyright © 2019 codebase. All rights reserved.
 //
 
