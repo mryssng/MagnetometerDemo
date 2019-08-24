@@ -2,7 +2,7 @@
 //  ViewController.swift
 //  MagnetometerDemo
 //
-//  Created by Ytse Jam on 2019/05/07.
+//  Created by shingo on 2019/05/07.
 //  Copyright © 2019 codebase. All rights reserved.
 //
 
@@ -10,7 +10,7 @@ import UIKit
 import CoreMotion
 import CoreLocation
 
-class ViewController: UIViewController, CLLocationManagerDelegate {
+class ViewController: UIViewController {
     @IBOutlet weak var magnetX: UILabel!
     @IBOutlet weak var magnetY: UILabel!
     @IBOutlet weak var magnetZ: UILabel!
@@ -34,16 +34,23 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
     // CLLocationManager
     var locationManager: CLLocationManager? = nil
     
-    // Icons
+    // Buttom icon images
     let startIcon = UIImage(named: "icon_start")
     let stopIcon = UIImage(named: "icon_stop")
     
     // Detection Status
     var isDetecting: Bool = false
     
+    // Event handler
     var updateMotionManagerHandler: CMMagnetometerHandler? = nil
     var updateDeviceMotionHandler: CMDeviceMotionHandler? = nil
-
+    
+    // Timer for getting heading data
+    var headingTimer: Timer?
+    
+    // Magnetometer update interval
+    let updateInterval = 0.1
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         
@@ -51,30 +58,29 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         isDetecting = false
         setDetectionAction()
         
-        // Location manager setting
         locationManager = CLLocationManager()
-        locationManager?.delegate = self
-        
+        locationManager?.headingFilter = kCLHeadingFilterNone
+                
         if motionManager.isMagnetometerAvailable {
             // Set data acquisition interval
-            motionManager.magnetometerUpdateInterval = 0.1
-            motionManager.deviceMotionUpdateInterval = 0.1
+            motionManager.magnetometerUpdateInterval = updateInterval
+            motionManager.deviceMotionUpdateInterval = updateInterval
             motionManager.showsDeviceMovementDisplay = true
             
             // Getting data from CMMotionManager
             updateMotionManagerHandler = {(magnetoData: CMMagnetometerData?, error:Error?) -> Void in
                 self.outputMagnetDataByMotionManager(magnet: magnetoData!.magneticField)
             }
-
+            
             // Getting data from CMDeviceMotion
-            //deviceMotion = motionManager.deviceMotion
             updateDeviceMotionHandler = {(deviceMotion: CMDeviceMotion?, error: Error?) -> Void in
                 self.outputMagnetDataByDeviceMotion(magnet: self.motionManager.deviceMotion!.magneticField)
             }
         }
     }
-
-    func outputMagnetDataByMotionManager(magnet: CMMagneticField){
+    
+    // Show raw magneetometer data
+    func outputMagnetDataByMotionManager(magnet: CMMagneticField) {
         // Magnetometer
         magnetX.text = String(format: "%10f", magnet.x)
         magnetY.text = String(format: "%10f", magnet.y)
@@ -83,8 +89,9 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         let total = sqrt(pow(magnet.x, 2) + pow(magnet.y, 2) + pow(magnet.z, 2))
         magnetTotal.text = String(format: "%10f", total)
     }
-
-    func outputMagnetDataByDeviceMotion(magnet: CMCalibratedMagneticField){
+    
+    // Show calibrated magneetometer data
+    func outputMagnetDataByDeviceMotion(magnet: CMCalibratedMagneticField) {
         // Magnetometer
         calMagX.text = String(format: "%10f", magnet.field.x)
         calMagY.text = String(format: "%10f", magnet.field.y)
@@ -93,28 +100,31 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         let total = sqrt(pow(magnet.field.x, 2) + pow(magnet.field.y, 2) + pow(magnet.field.z, 2))
         calMagTotal.text = String(format: "%10f", total)
     }
-
-    // Stop getting sensor data
-    func stopMagnetometer(){
+    
+    // Start getting sensor data
+    func startMagnetometer() {
+        motionManager.startMagnetometerUpdates(to: OperationQueue.main, withHandler: updateMotionManagerHandler!)
+        motionManager.startDeviceMotionUpdates(using: CMAttitudeReferenceFrame.xArbitraryCorrectedZVertical, to: OperationQueue.main, withHandler: updateDeviceMotionHandler!)
+        
+        locationManager?.startUpdatingHeading()
+        headingTimer = Timer.scheduledTimer(timeInterval: updateInterval, target: self, selector: #selector(ViewController.headingTimerUpdate), userInfo: nil, repeats: true)
+    }
+    
+    // Stop getting sensor dsta
+    func stopMagnetometer() {
         if (motionManager.isMagnetometerAvailable) {
             motionManager.stopMagnetometerUpdates()
             motionManager.stopDeviceMotionUpdates()
         }
         locationManager?.stopUpdatingHeading()
+        headingTimer?.invalidate()
     }
     
-    func setDetectionAction(){
+    // Start/Stop button action
+    func setDetectionAction() {
         if isDetecting {
             detectionButton.setImage(stopIcon, for: UIControl.State.normal)
-
-            // Get raw magnetometoer data (CMMagnetometer)
-            motionManager.startMagnetometerUpdates(to: OperationQueue.main, withHandler: updateMotionManagerHandler!)
-            
-            // Get CMCalibratedMagneticField data
-            motionManager.startDeviceMotionUpdates(using: CMAttitudeReferenceFrame.xArbitraryCorrectedZVertical, to: OperationQueue.main, withHandler: updateDeviceMotionHandler!)
-
-            // Get CLHeading magnetometoer data
-            locationManager?.startUpdatingHeading()
+            startMagnetometer()
         }
         else {
             detectionButton.setImage(startIcon, for: UIControl.State.normal)
@@ -122,19 +132,27 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         }
     }
     
-    func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
-        headingX.text = String(format: "%10f", newHeading.x)
-        headingY.text = String(format: "%10f", newHeading.y)
-        headingZ.text = String(format: "%10f", newHeading.z)
+    // Timer function for headingTimer
+    @objc func headingTimerUpdate() {
+        let newHeading = self.locationManager?.heading
+        let x = newHeading?.x ?? 0.0
+        let y = newHeading?.y ?? 0.0
+        let z = newHeading?.z ?? 0.0
         
-        let total = sqrt(pow(newHeading.x, 2) + pow(newHeading.y, 2) + pow(newHeading.z, 2))
+        headingX.text = String(format: "%10f", x)
+        headingY.text = String(format: "%10f", y)
+        headingZ.text = String(format: "%10f", z)
+        
+        let total = sqrt(pow(x, 2) + pow(y, 2) + pow(z, 2))
         headingTotal.text = String(format: "%10f", total)
+        
     }
     
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
     }
-
+    
+    // Start/Stop button action
     @IBAction func touchUpStartStopButton(_ sender: Any) {
         isDetecting = !isDetecting
         setDetectionAction()
